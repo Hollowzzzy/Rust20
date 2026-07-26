@@ -1,0 +1,21 @@
+[package]
+name = "rust20"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egui = "0.33"
+eframe = "0.33"
+rand = "0.9"
+image = "0.25"
+rdev = "0.5.3"
+rodio = "0.21"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+
+[package.metadata.bundle]
+name = "Rust20"
+identifier = "com.hollow.rust20"
+icon = ["assets/icon.icns"]
+osx_info_plist_path = "Info.plist"
