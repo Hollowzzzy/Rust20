@@ -2,28 +2,7 @@ use eframe::egui::{self, ColorImage, TextureHandle};
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink};
 use std::io::Cursor;
 
-const DICE_IMAGES: [&[u8]; 20] = [
-    include_bytes!("../assets/dice_images/Dice_1.png"),
-    include_bytes!("../assets/dice_images/Dice_2.png"),
-    include_bytes!("../assets/dice_images/Dice_3.png"),
-    include_bytes!("../assets/dice_images/Dice_4.png"),
-    include_bytes!("../assets/dice_images/Dice_5.png"),
-    include_bytes!("../assets/dice_images/Dice_6.png"),
-    include_bytes!("../assets/dice_images/Dice_7.png"),
-    include_bytes!("../assets/dice_images/Dice_8.png"),
-    include_bytes!("../assets/dice_images/Dice_9.png"),
-    include_bytes!("../assets/dice_images/Dice_10.png"),
-    include_bytes!("../assets/dice_images/Dice_11.png"),
-    include_bytes!("../assets/dice_images/Dice_12.png"),
-    include_bytes!("../assets/dice_images/Dice_13.png"),
-    include_bytes!("../assets/dice_images/Dice_14.png"),
-    include_bytes!("../assets/dice_images/Dice_15.png"),
-    include_bytes!("../assets/dice_images/Dice_16.png"),
-    include_bytes!("../assets/dice_images/Dice_17.png"),
-    include_bytes!("../assets/dice_images/Dice_18.png"),
-    include_bytes!("../assets/dice_images/Dice_19.png"),
-    include_bytes!("../assets/dice_images/Dice_20.png"),
-];
+const DICE_IMAGE: &[u8] = include_bytes!("../assets/dice_image/Dice.png");
 
 const ROLL_SOUND: &[u8] = include_bytes!("../assets/sounds/roll.wav");
 const NAT1_SOUND: &[u8] = include_bytes!("../assets/sounds/nat1.wav");
@@ -43,7 +22,7 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 fn load_icon() -> egui::IconData {
-    let image = image::load_from_memory(include_bytes!("../assets/dice_images/R20.png"))
+    let image = image::load_from_memory(include_bytes!("../assets/dice_image/Dice.png"))
         .expect("Failed to load icon")
         .into_rgba8();
 
@@ -58,32 +37,29 @@ fn load_icon() -> egui::IconData {
 
 struct App {
     roll_number: usize,
-    dice_images: Vec<TextureHandle>,
+    dice_image: TextureHandle,
     show_ui: bool,
     play_sound: bool,
-    stream: OutputStream,
+    stream: Option<OutputStream>,
 }
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let dice_images = DICE_IMAGES
-            .iter()
-            .enumerate()
-            .map(|(i, bytes)| {
-                cc.egui_ctx.load_texture(
-                    format!("dice_{}", i + 1),
-                    load_image(bytes),
-                    Default::default(),
-                )
-            })
-            .collect();
+        let dice_image =
+            cc.egui_ctx
+                .load_texture("dice", load_image(DICE_IMAGE), Default::default());
 
-        let stream =
-            OutputStreamBuilder::open_default_stream().expect("Failed to open audio device");
+        let stream = match OutputStreamBuilder::open_default_stream() {
+            Ok(stream) => Some(stream),
+            Err(err) => {
+                eprintln!("Failed to initialize audio: {err}");
+                None
+            }
+        };
 
         Self {
             roll_number: 1,
-            dice_images,
+            dice_image,
             show_ui: true,
             play_sound: true,
             stream,
@@ -91,22 +67,32 @@ impl App {
     }
 
     fn play_sound(&self) {
-        if self.play_sound {
-            let bytes = match self.roll_number {
-                1 => NAT1_SOUND,
-                20 => NAT20_SOUND,
-                _ => ROLL_SOUND,
-            };
-
-            let cursor = Cursor::new(bytes);
-
-            let decoder = Decoder::try_from(cursor).expect("Failed to decode sound");
-
-            let sink = Sink::connect_new(self.stream.mixer());
-
-            sink.append(decoder);
-            sink.detach();
+        if !self.play_sound {
+            return;
         }
+
+        let Some(stream) = &self.stream else {
+            return;
+        };
+
+        let bytes = match self.roll_number {
+            1 => NAT1_SOUND,
+            20 => NAT20_SOUND,
+            _ => ROLL_SOUND,
+        };
+
+        let decoder = match Decoder::try_from(Cursor::new(bytes)) {
+            Ok(decoder) => decoder,
+            Err(err) => {
+                eprintln!("Failed to decode sound: {err}");
+                return;
+            }
+        };
+
+        let sink = Sink::connect_new(stream.mixer());
+
+        sink.append(decoder);
+        sink.detach();
     }
 }
 
@@ -124,10 +110,51 @@ impl eframe::App for App {
 
                     ui.add_space((ui.available_height() - content_height).max(0.0) / 2.0);
 
-                    ui.add(
-                        egui::Image::new(&self.dice_images[self.roll_number - 1])
-                            .fit_to_exact_size(egui::vec2(256.0, 256.0)),
+                    let size = egui::vec2(256.0, 256.0);
+                    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+
+                    ui.painter().image(
+                        self.dice_image.id(),
+                        rect,
+                        egui::Rect::from_min_max(
+                            egui::Pos2::new(0.0, 0.0),
+                            egui::Pos2::new(1.0, 1.0),
+                        ),
+                        egui::Color32::WHITE,
                     );
+
+                    let painter = ui.painter();
+                    let center = rect.center();
+
+                    let font_size = 30.0;
+                    let font = egui::FontId::proportional(font_size);
+                    let text = self.roll_number.to_string();
+
+                    let text_color = match self.roll_number {
+                        1 => egui::Color32::RED,
+                        20 => egui::Color32::GREEN,
+                        _ => egui::Color32::WHITE,
+                    };
+
+                    let outline = (font_size / 64.0).max(1.0);
+
+                    for x in -1..=1 {
+                        for y in -1..=1 {
+                            if x == 0 && y == 0 {
+                                continue;
+                            }
+
+                            painter.text(
+                                center + egui::vec2(x as f32 * outline, y as f32 * outline),
+                                egui::Align2::CENTER_CENTER,
+                                &text,
+                                font.clone(),
+                                egui::Color32::BLACK,
+                            );
+                        }
+                    }
+
+                    painter.text(center, egui::Align2::CENTER_CENTER, &text, font, text_color);
 
                     if self.show_ui {
                         ui.add_space(10.0);
@@ -138,13 +165,16 @@ impl eframe::App for App {
 
                         if ui.button("Roll Dice").clicked() {
                             self.roll_number = rand::random_range(1..=20);
-
                             self.play_sound();
                         }
 
                         ui.add_space(10.0);
 
                         ui.checkbox(&mut self.play_sound, "Enable Sound");
+
+                        if self.stream.is_none() {
+                            ui.colored_label(egui::Color32::YELLOW, "Audio unavailable");
+                        }
                     }
                 },
             );
