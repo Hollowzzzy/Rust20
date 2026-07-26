@@ -1,6 +1,6 @@
-# R20
+# Rust20
 
-R20 is a simplistic D20 roller built in Rust.
+Rust20 is a simplistic D20 roller built in Rust.
 
 ## IMPORTANT FOR COMPILING
 
