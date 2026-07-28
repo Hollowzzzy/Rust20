@@ -101,84 +101,91 @@ impl eframe::App for App {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.show_ui = !self.show_ui;
         }
+        if ctx.input(|i| i.key_pressed(egui::Key::E)) {
+            self.roll_number = rand::random_range(1..=20);
+            self.play_sound();
+        }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.with_layout(
-                egui::Layout::top_down(egui::Align::Center).with_cross_align(egui::Align::Center),
-                |ui| {
-                    let content_height = if self.show_ui { 390.0 } else { 256.0 };
+        egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(egui::Color32::from_rgb(67, 67, 67)))
+            .show(ctx, |ui| {
+                ui.with_layout(
+                    egui::Layout::top_down(egui::Align::Center)
+                        .with_cross_align(egui::Align::Center),
+                    |ui| {
+                        let content_height = if self.show_ui { 390.0 } else { 256.0 };
 
-                    ui.add_space((ui.available_height() - content_height).max(0.0) / 2.0);
+                        ui.add_space((ui.available_height() - content_height).max(0.0) / 2.0);
 
-                    let size = egui::vec2(256.0, 256.0);
-                    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                        let size = egui::vec2(256.0, 256.0);
+                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
 
-                    ui.painter().image(
-                        self.dice_image.id(),
-                        rect,
-                        egui::Rect::from_min_max(
-                            egui::Pos2::new(0.0, 0.0),
-                            egui::Pos2::new(1.0, 1.0),
-                        ),
-                        egui::Color32::WHITE,
-                    );
+                        ui.painter().image(
+                            self.dice_image.id(),
+                            rect,
+                            egui::Rect::from_min_max(
+                                egui::Pos2::new(0.0, 0.0),
+                                egui::Pos2::new(1.0, 1.0),
+                            ),
+                            egui::Color32::WHITE,
+                        );
 
-                    let painter = ui.painter();
-                    let center = rect.center();
+                        let painter = ui.painter();
+                        let center = rect.center();
 
-                    let font_size = 30.0;
-                    let font = egui::FontId::proportional(font_size);
-                    let text = self.roll_number.to_string();
+                        let font_size = 30.0;
+                        let font = egui::FontId::proportional(font_size);
+                        let text = self.roll_number.to_string();
 
-                    let text_color = match self.roll_number {
-                        1 => egui::Color32::RED,
-                        20 => egui::Color32::GREEN,
-                        _ => egui::Color32::WHITE,
-                    };
+                        let text_color = match self.roll_number {
+                            1 => egui::Color32::RED,
+                            20 => egui::Color32::GREEN,
+                            _ => egui::Color32::WHITE,
+                        };
 
-                    let outline = (font_size / 64.0).max(1.0);
+                        let outline = (font_size / 64.0).max(1.0);
 
-                    for x in -1..=1 {
-                        for y in -1..=1 {
-                            if x == 0 && y == 0 {
-                                continue;
+                        for x in -1..=1 {
+                            for y in -1..=1 {
+                                if x == 0 && y == 0 {
+                                    continue;
+                                }
+
+                                painter.text(
+                                    center + egui::vec2(x as f32 * outline, y as f32 * outline),
+                                    egui::Align2::CENTER_CENTER,
+                                    &text,
+                                    font.clone(),
+                                    egui::Color32::BLACK,
+                                );
+                            }
+                        }
+
+                        painter.text(center, egui::Align2::CENTER_CENTER, &text, font, text_color);
+
+                        if self.show_ui {
+                            ui.add_space(10.0);
+
+                            ui.label(format!("You rolled a {}", self.roll_number));
+
+                            ui.add_space(10.0);
+
+                            if ui.button("Roll Dice").clicked() {
+                                self.roll_number = rand::random_range(1..=20);
+                                self.play_sound();
                             }
 
-                            painter.text(
-                                center + egui::vec2(x as f32 * outline, y as f32 * outline),
-                                egui::Align2::CENTER_CENTER,
-                                &text,
-                                font.clone(),
-                                egui::Color32::BLACK,
-                            );
+                            ui.add_space(10.0);
+
+                            ui.checkbox(&mut self.play_sound, "Enable Sound");
+
+                            if self.stream.is_none() {
+                                ui.colored_label(egui::Color32::YELLOW, "Audio unavailable");
+                            }
                         }
-                    }
-
-                    painter.text(center, egui::Align2::CENTER_CENTER, &text, font, text_color);
-
-                    if self.show_ui {
-                        ui.add_space(10.0);
-
-                        ui.label(format!("You rolled a {}", self.roll_number));
-
-                        ui.add_space(10.0);
-
-                        if ui.button("Roll Dice").clicked() {
-                            self.roll_number = rand::random_range(1..=20);
-                            self.play_sound();
-                        }
-
-                        ui.add_space(10.0);
-
-                        ui.checkbox(&mut self.play_sound, "Enable Sound");
-
-                        if self.stream.is_none() {
-                            ui.colored_label(egui::Color32::YELLOW, "Audio unavailable");
-                        }
-                    }
-                },
-            );
-        });
+                    },
+                );
+            });
     }
 }
 
